@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="">
+  <body>
+    <header></header>
+    <main>
+
+    <div class="popup" id="pop1">
+        <h1 style="align-content:center", id="bus-station-text">Bus Stop: X</h1>
+        <table id="BusTable">
+        <thead><tr><th>Line No.</th><th>Line Name.</th><th>Arrival in.</th><th>Garge No.</th><th>Stations Away</th><th></th></tr></thead>
+        </table>
+        <button onclick="CloseBusInfo()">Close</button>
+    </div>
+     <div id="map"></div>
+    </main>
+    <footer></footer>
+  </body>
+  <head>
+    <meta charset="utf-8">
+    <title>Better NSmart</title>
+    <style>
+     #map
+     {
+        height: 100vh;
+        flex: 1;
+     }
+    .popup
+    {
+        z-index: 9999999;
+        background-color: #ffffff;
+        width: 520px;
+        padding: 30px 40px;
+        position: absolute;
+        transform: translate(-50%,-50%);
+        left: 50%;
+        top: 50%;
+        border-radius: 8px;
+        display: none;
+        font-family: "Poppins",sans-serif;
+        text-align: center;
+    }
+    .popup button {
+            display: block;
+            width: 150px;
+            position: relative;
+            margin: 10px auto;
+            text-align: center;
+            background-color: #0f72e5;
+            border-radius: 20px;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 8px 0;
+        }
+
+        .popup h2 {
+            margin-top: -20px;
+        }
+
+        .popup p {
+            font-size: 14px;
+            text-align: justify;
+            margin: 20px 0;
+            line-height: 25px;
+        }
+    table, th, td {
+      border: 1px solid black;
+    }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+
+    var imageUrl = 'https://static-00.iconduck.com/assets.00/bus-icon-512x512-itlv4zpb.png';
+
+    var ids_map = new Map();
+
+    var bi = undefined;
+
+    var initial_info = new XMLHttpRequest();
+    initial_info.open("GET", "https://cors-anywhere.herokuapp.com/https://online.nsmart.rs/publicapi/v1/networkextended.php?action=get_cities_extended", false);
+    initial_info.setRequestHeader("x-api-authentication", "4670f468049bbee2260");
+
+    initial_info.send();
+
+    var resp = JSON.parse(initial_info.responseText);
+
+    var station = resp.stations;
+
+    navigator.geolocation.getCurrentPosition(SetPos, SetPosOnError);
+    var map = L.map('map');
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+
+    station.forEach(e =>
+    {
+        var m = L.marker([e.coordinates.latitude, e.coordinates.longitude]).addTo(map).on("click", MarkerClick);
+        ids_map.set(L.latLng(e.coordinates.latitude, e.coordinates.longitude).toString(), e.id);
+    });
+
+    function SetPos(pos)
+    {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+    }
+    function SetPosOnError(err)
+    {
+        map.setView([0, 0], 13);
+    }
+
+    function MarkerClick(e)
+    {
+        var pos = e.target._latlng.toString();
+        var res = ids_map.get(pos);
+
+        document.getElementById("pop1").style.display = "block";
+
+        ClearBusInfoTable();
+
+        bi = GetBusInfo(res);
+
+        if(bi.length != 0)
+        {
+          document.getElementById("bus-station-text").innerHTML = "Bus stop: " + bi[0].station_name;
+        }
+        else
+        {
+         document.getElementById("bus-station-text").innerHTML = "Bus stop: -";  // TODO: fix
+        }
+        var i = 0;
+        bi.forEach(e =>
+        {
+            var tbl = document.getElementById("BusTable");
+            var nr = tbl.insertRow(tbl.rows.length);
+            nr.insertCell(0).innerHTML = e.actual_line_number;
+            nr.insertCell(1).innerHTML = e.line_title;
+            nr.insertCell(2).innerHTML = (Math.floor(e.seconds_left / 60)).toString() + "m" + (e.seconds_left % 60).toString() + "s";
+            nr.insertCell(3).innerHTML = e.garage_no;
+            nr.insertCell(4).innerHTML = e.stations_between;
+            nr.insertCell(5).innerHTML = "<button onclick=\"ShowBusOnMap(" + i +")\">Show On Map</button>";
+            i++;
+        });
+
+    }
+
+    function ClearBusInfoTable()
+    {
+      var bus_info_table = document.getElementById("BusTable");
+      var tableHeaderRowCount = 1;
+      var rowCount = bus_info_table.rows.length;
+      for (var i = tableHeaderRowCount; i < rowCount; i++)
+      {
+          bus_info_table.deleteRow(tableHeaderRowCount);
+      }
+      document.getElementById("bus-station-text").innerHTML = "Bus stop: -";
+    }
+
+    function GetBusInfo(station_id)
+    {
+      var bus_info = new XMLHttpRequest();
+      var str = "https://cors-anywhere.herokuapp.com/https://online.nsmart.rs/publicapi/v1/announcement/announcement.php?station_uid=" + station_id;
+      bus_info.open("GET", str, false);
+      bus_info.setRequestHeader("X-Api-Authentication", "4670f468049bbee2260");
+
+      bus_info.send();
+
+      return JSON.parse(bus_info.responseText);
+    }
+
+    function CloseBusInfo()
+    {
+        document.getElementById("pop1").style.display = "none";
+    }
+
+    function ShowBusOnMap(bus_index)
+    {
+      var bus = bi[bus_index].vehicles[0];
+      var blat = bus.lat;
+      var blng = bus.lng;
+
+      var imageBounds = [[blat, blng], [ parseFloat(blat) + 0.00025, parseFloat(blng) + 0.00025]];
+      L.imageOverlay(imageUrl, imageBounds).addTo(map);
+    }
+
+    </script>
+  </head>
+</html>
