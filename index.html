@@ -86,7 +86,10 @@
 
     var station = resp.stations;
 
-    navigator.geolocation.getCurrentPosition(SetPos, SetPosOnError);
+    var current_bus_img = undefined;
+
+    var arr_marker = [];
+
     var map = L.map('map');
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -94,20 +97,19 @@
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
+    SetDefaultPos();
+    map.on("zoomend", ImgResize);
 
     station.forEach(e =>
     {
         var m = L.marker([e.coordinates.latitude, e.coordinates.longitude]).addTo(map).on("click", MarkerClick);
+        // arr_marker.push(m);
         ids_map.set(L.latLng(e.coordinates.latitude, e.coordinates.longitude).toString(), e.id);
     });
 
-    function SetPos(pos)
+    function SetDefaultPos(err)
     {
-        map.setView([pos.coords.latitude, pos.coords.longitude], 13);
-    }
-    function SetPosOnError(err)
-    {
-        map.setView([0, 0], 13);
+        map.setView([45.25239832687606, 19.84583516632487], 13);
     }
 
     function MarkerClick(e)
@@ -181,9 +183,30 @@
       var blng = bus.lng;
 
       var imageBounds = [[blat, blng], [ parseFloat(blat) + 0.00025, parseFloat(blng) + 0.00025]];
-      L.imageOverlay(imageUrl, imageBounds).addTo(map);
+      if(current_bus_img != undefined)
+      {
+            current_bus_img.removeFrom(map);
+      }
+      current_bus_img = L.imageOverlay(imageUrl, imageBounds).addTo(map);
+
+      CloseBusInfo();
+      map.setView([blat, blng], 17);
     }
 
+    function ImgResize(e)
+    {
+      console.log(e);
+      if (current_bus_img == undefined)
+      {
+        return;
+      }
+      var new_zoom = e.target.getZoom();
+      var bounds = current_bus_img.getBounds();
+      var new_offset = 0.00025 * (Math.pow(2, 17) / Math.pow(2, new_zoom)) ;
+      var imageBounds = [[bounds.getSouth(), bounds.getWest()], [ bounds.getSouth() + new_offset, bounds.getWest() + new_offset]];
+
+      current_bus_img.setBounds(imageBounds);
+    }
     </script>
   </head>
 </html>
